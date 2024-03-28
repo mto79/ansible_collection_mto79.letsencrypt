@@ -1,0 +1,56 @@
+---
+- name: "Setup | Create certificates dir"
+  ansible.builtin.file:
+    path: "{{ letsencrypt_certificates_directory }}/{{ certificates_letsencrypt_public_domain }}"
+    state: "directory"
+    mode: "0755"
+
+- name: "Setup | Create account-key"
+  community.crypto.openssl_privatekey:
+    path: "{{ letsencrypt_certificates_directory }}/account.key"
+    type: "RSA"
+    size: 4096
+
+- name: "Setup | Fetch letsencrypt root ca"
+  ansible.builtin.get_url:
+    url: "https://letsencrypt.org/certs/isrgrootx1.pem.txt"
+    dest: "{{ letsencrypt_certificates_directory }}/isrgrootx1.pem"
+
+- name: "Setup | Create key for {{ letsencrypt_certificates_public_domain }}"
+  community.crypto.openssl_privatekey:
+    path: "{{ letsencrypt_certificates_directory }}/{{ letsencrypt_certificates_public_domain }}/cert.key"
+    type: "RSA"
+    size: 4096
+
+- name: "Setup | Generate an OpenSSL Certificate Signing Request with subjectAltName extension"
+  community.crypto.openssl_csr:
+    path: "{{ letsencrypt_certificates_directory }}/{{ letsencrypt_certificates_public_domain }}/cert.csr"
+    privatekey_path: "{{ letsencrypt_certificates_directory }}/{{ letsencrypt_certificates_public_domain }}/cert.key"
+    subject_alt_name: "DNS:{{ letsencrypt_certificates_public_domain }}"
+
+- name: "Setup | Create a challenge for using a account key file."
+  community.crypto.acme_certificate:
+    account_key_src: "{{ letsencrypt_certificates_directory }}/account.key"
+    account_email: "{{ le_letsencrypt_account_email }}"
+    src: "{{ letsencrypt_certificates_directory }}/{{ letsencrypt_certificates_public_domain }}/cert.csr"
+    cert: "{{ letsencrypt_certificates_directory }}/{{ letsencrypt_certificates_public_domain }}/cert.crt"
+    challenge: "dns-01"
+    acme_directory: "{{ letsencrypt_certificates_acme_directory }}"
+    acme_version: 2
+    # Renew if the certificate is at least 30 days old
+    remaining_days: 60
+    terms_agreed: yes
+  register: "_letsencrypt_certificates_challenge"
+
+- name: "Setup | Debug var only with -vv"
+  ansible.builtin.debug:
+    var: "_letsencrypt_certificates_challenge"
+    verbosity: 2
+
+- name: "Setup | Set challenge_data_dns"
+  ansible.builtin.set_fact:  # noqa no-handler
+    letsencrypt_certificates_challenge_data_dns: "{{ _letsencrypt_certificates_challenge.challenge_data_dns }}"
+  when: "_letsencrypt_certificates_challenge is changed"
+
+
+...

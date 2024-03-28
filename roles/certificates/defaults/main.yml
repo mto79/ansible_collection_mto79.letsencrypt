@@ -1,0 +1,5 @@
+---
+letsencrypt_certificates_directory: "{{ playbook_dir }}/../certificate"
+letsencrypt_certificates_acme_directory: "https://acme-staging-v02.api.letsencrypt.org/directory"
+
+...
